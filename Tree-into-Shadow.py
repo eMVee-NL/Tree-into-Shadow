@@ -28,8 +28,8 @@ def logo():
 
 
 def clean_line(line):
-    line = re.sub(r"^├──\s+|^└──\s+|^│  \s+|^└──\s+", "", line)
-    line = line.replace("│  ", "").replace("├──", "").replace("└──", "")
+    line = re.sub(r"^├──\s+|^└──\s+|^│  \s+|^└──\s+|^│\s+", "", line)
+    line = line.replace("│  ", "").replace("├──", "").replace("└──", "").replace("│", "")
     return line.strip()
 
 
@@ -43,7 +43,7 @@ def rebuild_shadow(input_file, output_file=None, show_content=False):
 
     reconstructed = []
     current_username = None
-    current_hash_parts = []
+    current_buffer = []
 
     for line in lines:
         raw_line = line.strip()
@@ -57,29 +57,29 @@ def rebuild_shadow(input_file, output_file=None, show_content=False):
         if not cleaned:
             continue
 
-        if ":" in cleaned and not cleaned.startswith("$"):
-            if current_username and current_hash_parts:
-                full_hash = "/".join(current_hash_parts)
-                reconstructed.append(f"{current_username}:{full_hash}")
+        if ":" in cleaned and not (cleaned.startswith("$") or cleaned.startswith("*") or cleaned.startswith("!")):
+            if current_username:
+                full_raw_string = "".join(current_buffer)
+                reconstructed.append(f"{current_username}:{full_raw_string}")
                 current_username = None
-                current_hash_parts = []
+                current_buffer = []
 
             parts = cleaned.split(":", 1)
-            user = parts[0]
-            rest = parts[1]
-
-            if rest.startswith("$"):
-                current_username = user
-                current_hash_parts.append(rest)
-            else:
-                reconstructed.append(cleaned)
+            current_username = parts[0]
+            current_buffer.append(parts[1])
         else:
             if current_username:
-                current_hash_parts.append(cleaned)
+                if not current_buffer[-1].endswith("/") and not cleaned.startswith(":"):
+                    current_buffer.append("/" + cleaned)
+                else:
+                    current_buffer.append(cleaned)
+            else:
+                if ":" in cleaned:
+                    reconstructed.append(cleaned)
 
-    if current_username and current_hash_parts:
-        full_hash = "/".join(current_hash_parts)
-        reconstructed.append(f"{current_username}:{full_hash}")
+    if current_username:
+        full_raw_string = "".join(current_buffer)
+        reconstructed.append(f"{current_username}:{full_raw_string}")
 
     output_content = "\n".join(reconstructed) + "\n"
 
